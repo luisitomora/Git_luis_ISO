@@ -1,71 +1,28 @@
-#!/bin/bash
-
-mostrar_menu() {
-    clear
-    echo "============================"
-    echo "        Menú Principal       "
-    echo "============================"
-    echo "x - Extraer un archivo .tar"
-    echo "a - Añadir todos los .txt a un archivo .tar"
-    echo "c - Crear un .tar desde HOME"
-    echo "v - Visualizar el contenido de un .tar"
-    echo "m - Mostrar el menú nuevamente"
-    echo "q - Salir"
-    echo "============================"
-}
-
-# Mostrar el menú al inicio
-mostrar_menu
-
-while true; do
-    read -p "Seleccione una opción: " OPCION
-
-    case $OPCION in
+while getopts "x:a:c:v:" opcion; do
+    case $opcion in
         x)
-            read -p "Ingrese el nombre del archivo .tar a extraer: " TARFILE
-            if [ -f "$TARFILE" ]; then
-                echo "Extrayendo $TARFILE..."
-                tar -xf "$TARFILE"
-            else
-                echo "Archivo $TARFILE no encontrado."
-            fi
+            TARFILE="$OPTARG"
+            echo "Extrayendo $TARFILE..."
+            tar -xf "$TARFILE"
             ;;
-
         a)
-            read -p "Ingrese el nombre del archivo .tar donde añadir .txt: " TARFILE
-            echo "Añadiendo todos los archivos .txt al tar $TARFILE..."
+            TARFILE="$OPTARG"
+            echo "Añadiendo todos los .txt a $TARFILE..."
             find / -type f -name "*.txt" 2>/dev/null | xargs tar -rf "$TARFILE"
             ;;
-
         c)
-            read -p "Ingrese el nombre del archivo .tar a crear: " TARFILE
+            TARFILE="$OPTARG"
             echo "Creando tar $TARFILE desde HOME..."
             tar -cf "$TARFILE" "$HOME"
             ;;
-
         v)
-            read -p "Ingrese el nombre del archivo .tar a visualizar: " TARFILE
-            if [ -f "$TARFILE" ]; then
-                echo "Contenido del tar $TARFILE:"
-                tar -tf "$TARFILE"
-            else
-                echo "Archivo $TARFILE no encontrado."
-            fi
+            TARFILE="$OPTARG"
+            echo "Contenido del tar $TARFILE:"
+            tar -tf "$TARFILE"
             ;;
-
-        m)
-            mostrar_menu
-            ;;
-
-        q)
-            echo "Saliendo del script..."
-            exit 0
-            ;;
-
         *)
-            echo "Opción inválida. Use x, a, c, v, m o q."
+            echo "Opción inválida"
+            exit 1
             ;;
     esac
-
-    echo ""   # Línea en blanco para separar acciones
 done
