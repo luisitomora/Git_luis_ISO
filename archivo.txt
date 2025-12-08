@@ -1,67 +1,71 @@
 #!/bin/bash
 
 mostrar_menu() {
-    echo "Seleccione una opción:"
-    echo "  x - Extraer un archivo .tar"
-    echo "  a - Añadir todos los .txt a un archivo .tar"
-    echo "  c - Crear un .tar desde HOME"
-    echo "  v - Visualizar el contenido de un .tar"
-    echo "  q - Salir"
-    read -p "Opción: " OPC
-    echo $OPC
+    clear
+    echo "============================"
+    echo "        Menú Principal       "
+    echo "============================"
+    echo "x - Extraer un archivo .tar"
+    echo "a - Añadir todos los .txt a un archivo .tar"
+    echo "c - Crear un .tar desde HOME"
+    echo "v - Visualizar el contenido de un .tar"
+    echo "m - Mostrar el menú nuevamente"
+    echo "q - Salir"
+    echo "============================"
 }
 
-# Si NO se pasan opciones, mostrar menú interactivo
-if [ $# -eq 0 ]; then
-    OPCION=$(mostrar_menu)
-else
-    # Tomar la opción de la línea de comandos
-    while getopts "xacv" opcion; do
-        OPCION=$opcion
-        TARFILE="${!OPTIND}"  # argumento siguiente a la opción
-    done
-fi
+# Mostrar el menú al inicio
+mostrar_menu
 
-case $OPCION in
-    x)
-        if [ -z "$TARFILE" ]; then
+while true; do
+    read -p "Seleccione una opción: " OPCION
+
+    case $OPCION in
+        x)
             read -p "Ingrese el nombre del archivo .tar a extraer: " TARFILE
-        fi
-        echo "Extrayendo $TARFILE..."
-        tar -xf "$TARFILE"
-        ;;
+            if [ -f "$TARFILE" ]; then
+                echo "Extrayendo $TARFILE..."
+                tar -xf "$TARFILE"
+            else
+                echo "Archivo $TARFILE no encontrado."
+            fi
+            ;;
 
-    a)
-        if [ -z "$TARFILE" ]; then
+        a)
             read -p "Ingrese el nombre del archivo .tar donde añadir .txt: " TARFILE
-        fi
-        echo "Añadiendo archivos .txt al tar $TARFILE..."
-        find / -type f -name "*.txt" 2>/dev/null | xargs tar -rf "$TARFILE"
-        ;;
+            echo "Añadiendo todos los archivos .txt al tar $TARFILE..."
+            find / -type f -name "*.txt" 2>/dev/null | xargs tar -rf "$TARFILE"
+            ;;
 
-    c)
-        if [ -z "$TARFILE" ]; then
+        c)
             read -p "Ingrese el nombre del archivo .tar a crear: " TARFILE
-        fi
-        echo "Creando tar $TARFILE desde HOME..."
-        tar -cf "$TARFILE" "$HOME"
-        ;;
+            echo "Creando tar $TARFILE desde HOME..."
+            tar -cf "$TARFILE" "$HOME"
+            ;;
 
-    v)
-        if [ -z "$TARFILE" ]; then
+        v)
             read -p "Ingrese el nombre del archivo .tar a visualizar: " TARFILE
-        fi
-        echo "Contenido del tar $TARFILE:"
-        tar -tf "$TARFILE"
-        ;;
+            if [ -f "$TARFILE" ]; then
+                echo "Contenido del tar $TARFILE:"
+                tar -tf "$TARFILE"
+            else
+                echo "Archivo $TARFILE no encontrado."
+            fi
+            ;;
 
-    q)
-        echo "Saliendo..."
-        exit 0
-        ;;
+        m)
+            mostrar_menu
+            ;;
 
-    *)
-        echo "Opción inválida."
-        exit 1
-        ;;
-esac
+        q)
+            echo "Saliendo del script..."
+            exit 0
+            ;;
+
+        *)
+            echo "Opción inválida. Use x, a, c, v, m o q."
+            ;;
+    esac
+
+    echo ""   # Línea en blanco para separar acciones
+done
