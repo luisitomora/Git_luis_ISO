@@ -1,1 +1,44 @@
 intento de conflicto
+#!/bin/bash
+
+# Si NO se pasan opciones, mostramos uso
+if [ $# -eq 0 ]; then
+    echo "Uso: $0 -x|-a|-c|-v archivo.tar"
+    exit 1
+fi
+
+# Procesamos opciones con getopts
+while getopts "xacv" opcion; do
+    case $opcion in
+
+        x)  # Extraer un .tar donde estamos
+            TARFILE="${!OPTIND}"   # el argumento después de -x
+            echo "Extrayendo $TARFILE..."
+            tar -xf "$TARFILE"
+            ;;
+
+        a)  # Añadir todos los .txt al tar
+            TARFILE="${!OPTIND}"
+            echo "Añadiendo archivos .txt al tar $TARFILE..."
+            # Buscar todos los txt desde raíz (puede tardar)
+            find / -type f -name "*.txt" 2>/dev/null | xargs tar -rf "$TARFILE"
+            ;;
+
+        c)  # Crear .tar desde HOME del usuario
+            TARFILE="${!OPTIND}"
+            echo "Creando tar $TARFILE desde HOME..."
+            tar -cf "$TARFILE" "$HOME"
+            ;;
+
+        v)  # Visualizar el contenido del tar
+            TARFILE="${!OPTIND}"
+            echo "Contenido del tar $TARFILE:"
+            tar -tf "$TARFILE"
+            ;;
+
+        *)  # Cualquier opción incorrecta
+            echo "Opción inválida."
+            exit 1
+            ;;
+    esac
+done
