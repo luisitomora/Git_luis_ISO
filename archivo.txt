@@ -1,44 +1,67 @@
-intento de conflicto
 #!/bin/bash
 
-# Si NO se pasan opciones, mostramos uso
+mostrar_menu() {
+    echo "Seleccione una opción:"
+    echo "  x - Extraer un archivo .tar"
+    echo "  a - Añadir todos los .txt a un archivo .tar"
+    echo "  c - Crear un .tar desde HOME"
+    echo "  v - Visualizar el contenido de un .tar"
+    echo "  q - Salir"
+    read -p "Opción: " OPC
+    echo $OPC
+}
+
+# Si NO se pasan opciones, mostrar menú interactivo
 if [ $# -eq 0 ]; then
-    echo "Uso: $0 -x|-a|-c|-v archivo.tar"
-    exit 1
+    OPCION=$(mostrar_menu)
+else
+    # Tomar la opción de la línea de comandos
+    while getopts "xacv" opcion; do
+        OPCION=$opcion
+        TARFILE="${!OPTIND}"  # argumento siguiente a la opción
+    done
 fi
 
-# Procesamos opciones con getopts
-while getopts "xacv" opcion; do
-    case $opcion in
+case $OPCION in
+    x)
+        if [ -z "$TARFILE" ]; then
+            read -p "Ingrese el nombre del archivo .tar a extraer: " TARFILE
+        fi
+        echo "Extrayendo $TARFILE..."
+        tar -xf "$TARFILE"
+        ;;
 
-        x)  # Extraer un .tar donde estamos
-            TARFILE="${!OPTIND}"   # el argumento después de -x
-            echo "Extrayendo $TARFILE..."
-            tar -xf "$TARFILE"
-            ;;
+    a)
+        if [ -z "$TARFILE" ]; then
+            read -p "Ingrese el nombre del archivo .tar donde añadir .txt: " TARFILE
+        fi
+        echo "Añadiendo archivos .txt al tar $TARFILE..."
+        find / -type f -name "*.txt" 2>/dev/null | xargs tar -rf "$TARFILE"
+        ;;
 
-        a)  # Añadir todos los .txt al tar
-            TARFILE="${!OPTIND}"
-            echo "Añadiendo archivos .txt al tar $TARFILE..."
-            # Buscar todos los txt desde raíz (puede tardar)
-            find / -type f -name "*.txt" 2>/dev/null | xargs tar -rf "$TARFILE"
-            ;;
+    c)
+        if [ -z "$TARFILE" ]; then
+            read -p "Ingrese el nombre del archivo .tar a crear: " TARFILE
+        fi
+        echo "Creando tar $TARFILE desde HOME..."
+        tar -cf "$TARFILE" "$HOME"
+        ;;
 
-        c)  # Crear .tar desde HOME del usuario
-            TARFILE="${!OPTIND}"
-            echo "Creando tar $TARFILE desde HOME..."
-            tar -cf "$TARFILE" "$HOME"
-            ;;
+    v)
+        if [ -z "$TARFILE" ]; then
+            read -p "Ingrese el nombre del archivo .tar a visualizar: " TARFILE
+        fi
+        echo "Contenido del tar $TARFILE:"
+        tar -tf "$TARFILE"
+        ;;
 
-        v)  # Visualizar el contenido del tar
-            TARFILE="${!OPTIND}"
-            echo "Contenido del tar $TARFILE:"
-            tar -tf "$TARFILE"
-            ;;
+    q)
+        echo "Saliendo..."
+        exit 0
+        ;;
 
-        *)  # Cualquier opción incorrecta
-            echo "Opción inválida."
-            exit 1
-            ;;
-    esac
-done
+    *)
+        echo "Opción inválida."
+        exit 1
+        ;;
+esac
