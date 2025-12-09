@@ -1,28 +1,83 @@
-while getopts "x:a:c:v:" opcion; do
-    case $opcion in
-        x)
-            TARFILE="$OPTARG"
-            echo "Extrayendo $TARFILE..."
-            tar -xf "$TARFILE"
-            ;;
-        a)
-            TARFILE="$OPTARG"
-            echo "Añadiendo todos los .txt a $TARFILE..."
-            find / -type f -name "*.txt" 2>/dev/null | xargs tar -rf "$TARFILE"
-            ;;
-        c)
-            TARFILE="$OPTARG"
-            echo "Creando tar $TARFILE desde HOME..."
-            tar -cf "$TARFILE" "$HOME"
-            ;;
-        v)
-            TARFILE="$OPTARG"
-            echo "Contenido del tar $TARFILE:"
-            tar -tf "$TARFILE"
-            ;;
-        *)
-            echo "Opción inválida"
-            exit 1
-            ;;
-    esac
-done
+#!/bin/bash
+
+LOG="backup_usuarios.log"
+USERS_FILE="usuarios_ficheros.txt"
+
+echo "===== INICIO EJECUCIÓN: $(date) =====" >> $LOG
+
+# Leer cada línea del fichero usuario:carpeta_copias
+while IFS=":" read -r usuario carpeta_copias; do
+
+    # Saltar líneas vacías
+    [ -z "$usuario" ] && continue
+
+    echo "--- Procesando usuario: $usuario ---" >> $LOG
+
+    ########## 1️⃣ COMPROBAR SI EL USUARIO EXISTE ##########
+
+    if id "$usuario" &>/dev/null; then
+        echo "Usuario existe." >> $LOG
+        HOME_DIR=$(eval echo "~$usuario")
+        echo "Carpeta personal: $HOME_DIR" >> $LOG
+    else
+        echo "ERROR: El usuario $usuario no existe." >> $LOG
+        continue
+    fi
+
+
+    ########## 2️⃣ BUSCAR TODOS LOS .TXT EN HOME ##########
+
+    echo "Buscando ficheros .txt en $HOME_DIR ..." >> $LOG
+
+    archivos_txt=$(find "$HOME_DIR" -type f -name "*.txt")
+
+    echo "Encontrados:" >> $LOG
+    echo "$archivos_txt" >> $LOG
+
+
+    ########## 3️⃣ FILTRAR LOS MODIFICADOS ÚLTIMOS 30 DÍAS ##########
+
+    archivos_modificados=$(find "$HOME_DIR" -type f -name "*.txt" -mtime -30)
+
+    echo "Ficheros modificados últimos 30 días:" >> $LOG
+    echo "$archivos_modificados" >> $LOG
+
+
+    ########## 4️⃣ COPIAR SOLO LOS NUEVOS O MÁS ACTUALIZADOS ##########
+
+    mkdir -p "$carpeta_copias"
+
+    for fichero in $archivos_modificados; do
+
+        destino="$carpeta_copias/$(basename "$fichero")"
+
+        # Si no existe, copiar
+        if [ ! -e "$destino" ]; then
+            echo "Copiando (nuevo): $fichero" >> $LOG
+            cp "$fichero" "$destino"
+
+        # Si existe, copiar solo si es más nuevo
+        elif [ "$fichero" -nt "$destino" ]; then
+            echo "Copiando (más nuevo): $fichero" >> $LOG
+            cp "$fichero" "$destino"
+
+        else
+            echo "No copiado (ya actualizado): $fichero" >> $LOG
+        fi
+    done
+
+
+    ########## 5️⃣ CREAR UN .TAR CON LA FECHA ##########
+
+    fecha=$(date +"%Y%m%d")
+    nombre_tar="backup_${usuario}_${fecha}.tar"
+
+    echo "Creando tar: $nombre_tar" >> $LOG
+    tar -cf "$nombre_tar" "$carpeta_copias"
+
+
+    echo "--- FIN USUARIO $usuario ---" >> $LOG
+
+done < "$USERS_FILE"
+
+echo "===== FIN EJECUCIÓN: $(date) =====" >> $LOG
