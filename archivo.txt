@@ -1,83 +1,189 @@
 #!/bin/bash
 
-LOG="backup_usuarios.log"
-USERS_FILE="usuarios_ficheros.txt"
+#############################################
+# FICHERO DE ENTRADA
+#############################################
 
-echo "===== INICIO EJECUCIÓN: $(date) =====" >> $LOG
+FICHERO="$1"
 
-# Leer cada línea del fichero usuario:carpeta_copias
-while IFS=":" read -r usuario carpeta_copias; do
+if [[ -z "$FICHERO" ]]; then
+    echo "Uso: $0 fichero_usuarios"
+    exit 1
+fi
 
-    # Saltar líneas vacías
-    [ -z "$usuario" ] && continue
+if [[ ! -f "$FICHERO" ]]; then
+    echo "ERROR: El fichero $FICHERO no existe."
+    exit 1
+fi
 
-    echo "--- Procesando usuario: $usuario ---" >> $LOG
+#############################################
+# ARRAYS
+#############################################
 
-    ########## 1️⃣ COMPROBAR SI EL USUARIO EXISTE ##########
+declare -A indice_usuario   # asociativo: nombre → índice
+declare -a usuarios         # array "bidimensional" (cada item tiene 4 campos)
 
-    if id "$usuario" &>/dev/null; then
-        echo "Usuario existe." >> $LOG
-        HOME_DIR=$(eval echo "~$usuario")
-        echo "Carpeta personal: $HOME_DIR" >> $LOG
-    else
-        echo "ERROR: El usuario $usuario no existe." >> $LOG
-        continue
+#############################################
+# CARGAR FICHERO EN EL ARRAY
+#############################################
+
+cargar_fichero() {
+    local i=0
+
+    while IFS=":" read -r nombre uid home shell; do
+        [[ -z "$nombre" ]] && continue
+
+        usuarios[$i]="$nombre:$uid:$home:$shell"
+        indice_usuario["$nombre"]=$i
+
+        ((i++))
+    done < "$FICHERO"
+}
+
+#############################################
+# MOSTRAR USUARIO
+#############################################
+
+mostrar_usuario() {
+    read -p "Nombre usuario: " nombre
+
+    if [[ -z "${indice_usuario[$nombre]}" ]]; then
+        echo "El usuario no existe."
+        return
     fi
 
+    index=${indice_usuario[$nombre]}
+    IFS=":" read n u h s <<< "${usuarios[$index]}"
 
-    ########## 2️⃣ BUSCAR TODOS LOS .TXT EN HOME ##########
+    echo "----------------------------"
+    echo "Nombre : $n"
+    echo "UID    : $u"
+    echo "Home   : $h"
+    echo "Shell  : $s"
+    echo "----------------------------"
+}
 
-    echo "Buscando ficheros .txt en $HOME_DIR ..." >> $LOG
+#############################################
+# CREAR USUARIO
+#############################################
 
-    archivos_txt=$(find "$HOME_DIR" -type f -name "*.txt")
+crear_usuario() {
+    read -p "Nuevo nombre: " nombre
 
-    echo "Encontrados:" >> $LOG
-    echo "$archivos_txt" >> $LOG
+    if [[ -n "${indice_usuario[$nombre]}" ]]; then
+        echo "Ese usuario ya existe en la estructura."
+        return
+    fi
 
+    read -p "UID: " uid
+    read -p "Home: " home
+    read -p "Shell: " shell
 
-    ########## 3️⃣ FILTRAR LOS MODIFICADOS ÚLTIMOS 30 DÍAS ##########
+    index=${#usuarios[@]}
+    usuarios[$index]="$nombre:$uid:$home:$shell"
+    indice_usuario["$nombre"]=$index
 
-    archivos_modificados=$(find "$HOME_DIR" -type f -name "*.txt" -mtime -30)
+    echo "Usuario añadido a la estructura."
+}
 
-    echo "Ficheros modificados últimos 30 días:" >> $LOG
-    echo "$archivos_modificados" >> $LOG
+#############################################
+# MODIFICAR USUARIO
+#############################################
 
+modificar_usuario() {
+    read -p "Nombre usuario: " nombre
 
-    ########## 4️⃣ COPIAR SOLO LOS NUEVOS O MÁS ACTUALIZADOS ##########
+    [[ -z "${indice_usuario[$nombre]}" ]] && {
+        echo "El usuario no existe."; return;
+    }
 
-    mkdir -p "$carpeta_copias"
+    index=${indice_usuario[$nombre]}
+    IFS=":" read n u h s <<< "${usuarios[$index]}"
 
-    for fichero in $archivos_modificados; do
+    read -p "Nuevo UID ($u): " nuevo_uid
+    read -p "Nuevo HOME ($h): " nuevo_home
+    read -p "Nuevo SHELL ($s): " nuevo_shell
 
-        destino="$carpeta_copias/$(basename "$fichero")"
+    nuevo_uid=${nuevo_uid:-$u}
+    nuevo_home=${nuevo_home:-$h}
+    nuevo_shell=${nuevo_shell:-$s}
 
-        # Si no existe, copiar
-        if [ ! -e "$destino" ]; then
-            echo "Copiando (nuevo): $fichero" >> $LOG
-            cp "$fichero" "$destino"
+    usuarios[$index]="$nombre:$nuevo_uid:$nuevo_home:$nuevo_shell"
 
-        # Si existe, copiar solo si es más nuevo
-        elif [ "$fichero" -nt "$destino" ]; then
-            echo "Copiando (más nuevo): $fichero" >> $LOG
-            cp "$fichero" "$destino"
+    echo "Usuario modificado."
+}
 
-        else
-            echo "No copiado (ya actualizado): $fichero" >> $LOG
+#############################################
+# BORRAR USUARIO
+#############################################
+
+borrar_usuario() {
+    read -p "Usuario a borrar: " nombre
+
+    index=${indice_usuario[$nombre]}
+
+    if [[ -z "$index" ]]; then
+        echo "No existe."
+        return
+    fi
+
+    unset 'usuarios[$index]'
+    unset 'indice_usuario[$nombre]'
+
+    echo "Usuario borrado de la estructura."
+}
+
+#############################################
+# VOLCAR SOLO NUEVOS USUARIOS A /etc/passwd
+#############################################
+
+volcar_sistema() {
+    echo "Creando únicamente usuarios nuevos..."
+
+    for linea in "${usuarios[@]}"; do
+        [[ -z "$linea" ]] && continue
+
+        IFS=":" read nombre uid home shell <<< "$linea"
+
+        if id "$nombre" &>/dev/null; then
+            echo "Ya existe en el sistema: $nombre"
+            continue
         fi
+
+        sudo useradd -u "$uid" -d "$home" -s "$shell" "$nombre"
+        echo "Creado: $nombre"
     done
+}
 
+#############################################
+# MENÚ PRINCIPAL
+#############################################
 
-    ########## 5️⃣ CREAR UN .TAR CON LA FECHA ##########
+menu() {
+    while true; do
+        echo ""
+        echo "1) Ver usuario"
+        echo "2) Crear usuario"
+        echo "3) Modificar usuario"
+        echo "4) Borrar usuario"
+        echo "5) Volcar al sistema (/etc/passwd)"
+        echo "6) Salir"
+        read -p "Opción: " op
 
-    fecha=$(date +"%Y%m%d")
-    nombre_tar="backup_${usuario}_${fecha}.tar"
+        case $op in
+            1) mostrar_usuario ;;
+            2) crear_usuario ;;
+            3) modificar_usuario ;;
+            4) borrar_usuario ;;
+            5) volcar_sistema ;;
+            6) exit ;;
+            *) echo "Opción no válida" ;;
+        esac
+    done
+}
 
-    echo "Creando tar: $nombre_tar" >> $LOG
-    tar -cf "$nombre_tar" "$carpeta_copias"
-
-
-    echo "--- FIN USUARIO $usuario ---" >> $LOG
-
-done < "$USERS_FILE"
-
-echo "===== FIN EJECUCIÓN: $(date) =====" >> $LOG
+#############################################
+# INICIO
+#############################################
+cargar_fichero
+menu
