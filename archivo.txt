@@ -20,8 +20,8 @@ fi
 # ARRAYS
 #############################################
 
-declare -A indice_usuario   # asociativo: nombre → índice
-declare -a usuarios         # array "bidimensional" (cada item tiene 4 campos)
+declare -A indice_usuario
+declare -a usuarios
 
 #############################################
 # CARGAR FICHERO EN EL ARRAY
@@ -32,10 +32,8 @@ cargar_fichero() {
 
     while IFS=":" read -r nombre uid home shell; do
         [[ -z "$nombre" ]] && continue
-
         usuarios[$i]="$nombre:$uid:$home:$shell"
         indice_usuario["$nombre"]=$i
-
         ((i++))
     done < "$FICHERO"
 }
@@ -45,7 +43,7 @@ cargar_fichero() {
 #############################################
 
 mostrar_usuario() {
-    read -p "Nombre usuario: " nombre
+    read -p "Nombre del usuario: " nombre
 
     if [[ -z "${indice_usuario[$nombre]}" ]]; then
         echo "El usuario no existe."
@@ -71,7 +69,7 @@ crear_usuario() {
     read -p "Nuevo nombre: " nombre
 
     if [[ -n "${indice_usuario[$nombre]}" ]]; then
-        echo "Ese usuario ya existe en la estructura."
+        echo "Ya existe en la estructura."
         return
     fi
 
@@ -83,7 +81,7 @@ crear_usuario() {
     usuarios[$index]="$nombre:$uid:$home:$shell"
     indice_usuario["$nombre"]=$index
 
-    echo "Usuario añadido a la estructura."
+    echo "Usuario creado en la estructura."
 }
 
 #############################################
@@ -104,11 +102,7 @@ modificar_usuario() {
     read -p "Nuevo HOME ($h): " nuevo_home
     read -p "Nuevo SHELL ($s): " nuevo_shell
 
-    nuevo_uid=${nuevo_uid:-$u}
-    nuevo_home=${nuevo_home:-$h}
-    nuevo_shell=${nuevo_shell:-$s}
-
-    usuarios[$index]="$nombre:$nuevo_uid:$nuevo_home:$nuevo_shell"
+    usuarios[$index]="$nombre:${nuevo_uid:-$u}:${nuevo_home:-$h}:${nuevo_shell:-$s}"
 
     echo "Usuario modificado."
 }
@@ -120,17 +114,17 @@ modificar_usuario() {
 borrar_usuario() {
     read -p "Usuario a borrar: " nombre
 
-    index=${indice_usuario[$nombre]}
-
-    if [[ -z "$index" ]]; then
+    if [[ -z "${indice_usuario[$nombre]}" ]]; then
         echo "No existe."
         return
     fi
 
+    index=${indice_usuario[$nombre]}
+
     unset 'usuarios[$index]'
     unset 'indice_usuario[$nombre]'
 
-    echo "Usuario borrado de la estructura."
+    echo "Usuario borrado."
 }
 
 #############################################
@@ -146,44 +140,50 @@ volcar_sistema() {
         IFS=":" read nombre uid home shell <<< "$linea"
 
         if id "$nombre" &>/dev/null; then
-            echo "Ya existe en el sistema: $nombre"
+            echo "$nombre ya existe, no se crea."
             continue
         fi
 
         sudo useradd -u "$uid" -d "$home" -s "$shell" "$nombre"
-        echo "Creado: $nombre"
+        echo "Creado usuario en el sistema: $nombre"
     done
 }
 
 #############################################
-# MENÚ PRINCIPAL
+# MOSTRAR MENÚ (FUNCIÓN)
 #############################################
 
-menu() {
-    while true; do
-        echo ""
-        echo "1) Ver usuario"
-        echo "2) Crear usuario"
-        echo "3) Modificar usuario"
-        echo "4) Borrar usuario"
-        echo "5) Volcar al sistema (/etc/passwd)"
-        echo "6) Salir"
-        read -p "Opción: " op
-
-        case $op in
-            1) mostrar_usuario ;;
-            2) crear_usuario ;;
-            3) modificar_usuario ;;
-            4) borrar_usuario ;;
-            5) volcar_sistema ;;
-            6) exit ;;
-            *) echo "Opción no válida" ;;
-        esac
-    done
+mostrar_menu() {
+    echo ""
+    echo "======== MENÚ PRINCIPAL ========"
+    echo "1) Ver usuario"
+    echo "2) Crear usuario"
+    echo "3) Modificar usuario"
+    echo "4) Borrar usuario"
+    echo "5) Volcar al sistema (/etc/passwd)"
+    echo "6) Salir"
+    echo "7) Limpiar pantalla y mostrar menú"
+    echo "================================"
 }
 
 #############################################
 # INICIO
 #############################################
+
 cargar_fichero
-menu
+mostrar_menu   # ⚡ SOLO SE MUESTRA UNA VEZ
+
+while true; do
+    read -p "Opción: " op
+
+    case $op in
+        1) mostrar_usuario ;;
+        2) crear_usuario ;;
+        3) modificar_usuario ;;
+        4) borrar_usuario ;;
+        5) volcar_sistema ;;
+        6) exit ;;
+        7) clear ; mostrar_menu ;;   # ⚡ LIMPIAR + MOSTRAR MENÚ
+        *) echo "Opción no válida" ;;
+    esac
+done
